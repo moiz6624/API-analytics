@@ -1,13 +1,40 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, Response
+import os
 import requests
 import time
 from collections import OrderedDict
 
 app = Flask(__name__)
 
+import hmac
+
+# --- Hardcoded access credentials: no page is reachable without this login ---
+_AUTH_USER = os.environ.get("APP_AUTH_USER", "apic")
+_AUTH_PASS = os.environ.get("APP_AUTH_PASS", "")
+
+
+def _check_auth(auth):
+    if not _AUTH_PASS or not auth:
+        return False
+    user_ok = hmac.compare_digest(auth.username or "", _AUTH_USER)
+    pass_ok = hmac.compare_digest(auth.password or "", _AUTH_PASS)
+    return user_ok and pass_ok
+
+
+@app.before_request
+def _require_login():
+    if not _check_auth(request.authorization):
+        return Response(
+            "Authentication required.\n",
+            401,
+            {"WWW-Authenticate": 'Basic realm="API Analytics"'},
+        )
+
+
+
 # IBM IAM Token URL
 TOKEN_URL = "https://iam.cloud.ibm.com/identity/token"
-API_KEY = "G75K2zUTU93680aujv91-HUn2_gxG8qYEtvJFjfzxaMm"
+API_KEY = os.environ.get("IBM_API_KEY", "")
 
 # URLs
 URL_STAGING = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/dev-catalog/events"
@@ -28,7 +55,7 @@ TIMEFRAME_MAP = {
     "24h": "last24hours",
     "7d": "last7days",
     "30d": "last30days",
-    "all-event": "all-event"
+    "all-event": "all"
 }
 
 def get_token():
@@ -69,6 +96,16 @@ def analytics():
         if request.form.get("app_name"):
             params["app_name"] = f"contains:{request.form.get('app_name')}"
 
+        # Product (server-side filter: IBM accepts product_title)
+        if request.form.get("product"):
+            params["product_title"] = f"contains:{request.form.get('product')}"
+
+        # Consumer Org / Client: IBM events API has no org query param, so pull
+        # more rows and filter in-app by developer_org_title (done after fetch).
+        client_org = (request.form.get("org_name") or "").strip()
+        if client_org:
+            params["limit"] = 1000
+
         # API Name
         if request.form.get("use_api_name"):
             api_name = request.form.get("api_name")
@@ -101,6 +138,7 @@ def analytics():
 
         # Fields to fetch
         params["fields"] = (
+            "developer_org_title,product_title,"
             "api_name,api_resource_id,app_name,request_http_headers,datetime,"
             "global_transaction_id,request_body,response_body,status_code,"
             "time_to_serve_request"
@@ -136,6 +174,8 @@ def analytics():
 
                 # Build ordered dict
                 ordered = OrderedDict()
+                ordered["developer_org_title"] = ev.get("developer_org_title")
+                ordered["product_title"] = ev.get("product_title")
                 ordered["api_name"] = ev.get("api_name")
                 ordered["api_resource_id"] = ev.get("api_resource_id")
                 ordered["app_name"] = ev.get("app_name")
@@ -149,6 +189,13 @@ def analytics():
 
                 reordered_events.append(ordered)
 
+            if client_org:
+                _cl = client_org.lower()
+                reordered_events = [
+                    e for e in reordered_events
+                    if _cl in (e.get("developer_org_title") or "").lower()
+                ]
+
             response_data = {"events": reordered_events}
 
         except Exception as e:
@@ -158,4 +205,4 @@ def analytics():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)

@@ -3,28 +3,145 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>API Analytics</title>
 
     <style>
-        .env-buttons {
-            text-align: center;
-            margin-bottom: 20px;
+        :root {
+            --bg: #eef1f7;
+            --card: #ffffff;
+            --ink: #1b2330;
+            --muted: #6b7684;
+            --border: #e3e8f0;
+            --field-bg: #ffffff;
+            --brand: #2f6df6;
+            --brand-weak: rgba(47, 109, 246, .14);
+            --accent: #10b981;
+            --code-bg: #0f172a;
+            --code-ink: #dbe4f3;
+            --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 4px 16px rgba(16, 24, 40, .06);
         }
 
-        .env-buttons button {
-            padding: 10px 20px;
-            margin: 5px;
-            border: none;
-            background: #ddd;
-            cursor: pointer;
-            font-size: 16px;
-            border-radius: 6px;
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0c1118;
+                --card: #151c26;
+                --ink: #e8edf5;
+                --muted: #93a0b2;
+                --border: #26303d;
+                --field-bg: #0f151d;
+                --brand: #5b8cff;
+                --brand-weak: rgba(91, 140, 255, .2);
+                --code-bg: #0a0f16;
+                --code-ink: #cdd8ea;
+                --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+            }
         }
 
-        .env-buttons .active {
-            background: #4CAF50;
-            color: white;
-            font-weight: bold;
+        :root[data-theme="dark"] {
+            --bg: #0c1118; --card: #151c26; --ink: #e8edf5; --muted: #93a0b2;
+            --border: #26303d; --field-bg: #0f151d; --brand: #5b8cff;
+            --brand-weak: rgba(91, 140, 255, .2); --code-bg: #0a0f16; --code-ink: #cdd8ea;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 16px 72px; }
+
+        header.page {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+        }
+
+        h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -.015em; }
+        .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+        .seg {
+            display: inline-flex; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 11px; padding: 4px; gap: 4px;
+        }
+        .seg button {
+            border: 0; background: transparent; padding: 8px 18px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer;
+            transition: all .15s ease;
+        }
+        .seg button:hover { color: var(--ink); }
+        .seg button.active { background: var(--card); color: var(--brand); box-shadow: var(--shadow); }
+
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; box-shadow: var(--shadow); padding: 24px;
+        }
+
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px;
+        }
+
+        .field { min-width: 0; }
+        .field > label.cap {
+            display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .05em; margin-bottom: 7px;
+        }
+
+        input[type="text"], select, input[list] {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 10px; font-size: 14px; background: var(--field-bg);
+            color: var(--ink); transition: border-color .15s, box-shadow .15s;
+        }
+        input::placeholder { color: var(--muted); opacity: .8; }
+        input:focus, select:focus {
+            outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-weak);
+        }
+
+        .hint { font-size: 12px; color: var(--muted); margin-top: 5px; min-height: 1em; }
+
+        details.adv {
+            margin-top: 20px; border-top: 1px solid var(--border); padding-top: 18px;
+        }
+        details.adv > summary {
+            cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink);
+            list-style: none; display: inline-flex; align-items: center; gap: 8px; user-select: none;
+        }
+        details.adv > summary::-webkit-details-marker { display: none; }
+        details.adv > summary::before {
+            content: "\25B8"; color: var(--muted); transition: transform .15s; display: inline-block;
+        }
+        details.adv[open] > summary::before { transform: rotate(90deg); }
+
+        label.check {
+            display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
+            font-weight: 600; color: var(--ink); margin-bottom: 7px; cursor: pointer;
+        }
+        label.check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+
+        .actions { margin-top: 22px; display: flex; gap: 12px; align-items: center; }
+        .btn-primary {
+            background: var(--brand); color: #fff; border: 0; padding: 12px 24px;
+            border-radius: 11px; font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: filter .15s, transform .05s;
+        }
+        .btn-primary:hover { filter: brightness(1.05); }
+        .btn-primary:active { transform: translateY(1px); }
+
+        h2.resp-title {
+            font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+            letter-spacing: .05em; margin: 30px 0 12px;
+        }
+        pre.resp {
+            background: var(--code-bg); color: var(--code-ink); padding: 18px 20px;
+            border-radius: 14px; overflow: auto; max-height: 620px; margin: 0;
+            font-size: 12.5px; line-height: 1.55;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            border: 1px solid var(--border);
         }
     </style>
 
@@ -42,18 +159,24 @@
                 stagingBtn.classList.add("active");
             }
 
-            // Fill dropdowns dynamically
+            // Fill App datalist from the known app->org map
             const appList = document.getElementById("app_names");
-            const orgList = document.getElementById("org_names");
-            Object.entries(appOrgMap).forEach(([app, org]) => {
-                const appOpt = document.createElement("option");
-                appOpt.value = app;
-                appList.appendChild(appOpt);
-
-                const orgOpt = document.createElement("option");
-                orgOpt.value = org;
-                orgList.appendChild(orgOpt);
+            Object.keys(appOrgMap).forEach((app) => {
+                const o = document.createElement("option");
+                o.value = app;
+                appList.appendChild(o);
             });
+
+            // Show owner email when a client / consumer org is picked
+            const orgInput = document.querySelector('input[name="org_name"]');
+            const ownerHint = document.getElementById("org_owner_hint");
+            if (orgInput && ownerHint) {
+                const upd = () => {
+                    const owner = orgOwnerMap[orgInput.value.trim()];
+                    ownerHint.textContent = owner ? ("Owner: " + owner) : "";
+                };
+                orgInput.addEventListener("input", upd);
+            }
         };
 
         // App/Org map
@@ -150,6 +273,115 @@
             "apigprdhumraah": "Humraah"
         };
 
+        const orgOwnerMap = {
+            "SuperIT": "baxi70855@gmail.com",
+            "Original Khata": "isaac@originalkhaata.com",
+            "Everest": "everestdisbursement@gmail.com",
+            "SwitchGW": "nisar@swichnow.io",
+            "Samsoft": "support@samsoftsolution.com",
+            "Mehfoozit": "zahraali05042023@gmail.com",
+            "Foremost": "statement@foremostpak.com",
+            "QarzMitra": "info@fintechgharanafinanciallimit.com",
+            "BLUESKY": "tech.team@bfslpk.com",
+            "MERCADO": "ali@finsurgents.com",
+            "PayPro": "muhammad.asad@paypro.com.pk",
+            "Evolvica": "admin@evolvicasolutions.com",
+            "Technopreneur": "hussainmtechnoprenure@outlook.com",
+            "Block Chain": "hassan@stacksasia.foundation",
+            "Finleap": "usama@xinye.com",
+            "Blue-ex": "sharmeen.siddiqui@blue-ex.com",
+            "ICMAP": "waqas.nawaz@easyfinance.pk",
+            "Swift Collect System": "scollectsystems@gmail.com",
+            "Finova Tech": "finovapayout@gmail.com",
+            "Quark": "mark.ma@quarkintl.com",
+            "Khushi Connect": "khushiconnect3@gmail.com",
+            "Awami Financials": "official@awamifinancial.com",
+            "PayPlus": "paypluspk@gmail.com",
+            "AwanPay": "monsterai.sam@gmail.com",
+            "INSPIREINNO": "inspireinnosmc@gmail.com",
+            "ArcanaInfo": "ameer.hamza@arcanainfo.com",
+            "Switch": "nisar@numbers.pk",
+            "EFZH": "payout.dis@gmail.com",
+            "agregga": "agreggatech@gmail.com",
+            "martbox": "ali.shan@martboxhub.com",
+            "dukan": "farooq.ahmed@dukan.pk",
+            "infodigit": "infodigitsys@gmail.com",
+            "storeblend": "storeblendlimited@gmail.com",
+            "ENEXT": "bilal@esquare.com.pk",
+            "Mono Tech": "info@monotech.pk",
+            "superpay": "farrukh@superpay.com.pk",
+            "WAU Technologies": "wautechpvtltd@gmail.com",
+            "SHOPSPHERE": "shopsphere989@gmail.com",
+            "geekguru": "geekguru870@gmail.com",
+            "DIGITEASE": "info@digiteasegateway.com",
+            "iconnect": "kele890724@gmail.com",
+            "Essasoft": "eppayout@essasoftsolutions.com",
+            "Crown App": "muhammad.rafay@crowngroup.com.pk",
+            "Trax": "bassam@finsurgents.com",
+            "Pique pulse": "piquepulse9@gmail.com",
+            "Visioncred": "fouji@cicadacap.com",
+            "Savyways": "paysavvy024@gmail.com",
+            "GreenApp": "k.hammad@greenapp.pk",
+            "Linx Tech": "linxtechsolutions333@gmail.com",
+            "QuantumByte": "shahid@quantumbyte.pk",
+            "RedFeet": "rfeet74@gmail.com",
+            "zanitha": "zanithacompany@gmail.com",
+            "QuickQuake": "quickquake5@gmail.com",
+            "GlintGlide": "glintglide@gmail.com",
+            "NovaConnect": "novaconnect65@gmail.com",
+            "CartFirst": "cartfirstlimited@gmail.com",
+            "Adonai": "hassanjaved@adonaitechnology.com",
+            "Posale": "posalepay@gmail.com",
+            "Fluxify": "fluxify024@gmail.com",
+            "Zenforge": "payforge@gmail.com",
+            "Quwat": "raheel@quwat.co",
+            "ABH": "abhecommerce01@gmail.com",
+            "Pixel": "pixelcode024@gmail.com",
+            "Money Tap": "sunweixiang@inxtech.cn",
+            "Impexiple": "impexiple0@gmail.com",
+            "Trarixa": "trarixa@gmail.com",
+            "Truebliss": "blisstrue22@gmail.com",
+            "Devtects": "saifulislam@devtects.com",
+            "Impeltech": "zc@gdbbk.com",
+            "Paismo": "waqar.malik@paismo.com",
+            "Simpaisa HC": "rizwan@simpaisa.com",
+            "Finance@pakisnova.com": "finance@pakisnova.com",
+            "bykea": "payments@bykea.com",
+            "QWALEE": "bilal.ahmed@hakeem.tech",
+            "ajar": "shahid.muneer@ajarpay.com.pk",
+            "Multiverse": "bilal.ahmed@walee.pk",
+            "karotech": "bushra.karotech@outlook.com",
+            "4sight": "publicrelationship@4sightpk.com",
+            "Ecom": "support@merchantsglobe.com",
+            "Finja": "asad.siddique@finja.pk",
+            "Easypaisa OPS": "hamza.naeem@telenorbank.pk",
+            "Naseeb online": "kaiser.waseem@naseebnetworks.com",
+            "ESquare": "shayan@esquare.com.pk",
+            "Abhi": "moeen@abhi.com.pk",
+            "Khaleeftech": "ali.gillani@khaleef.com",
+            "snapretails": "ahsan.aziz@snappretail.io",
+            "Maria": "maria.malik@arcanainfo.com",
+            "ecofin": "zawar.haider@ecofin.com.pk",
+            "apigprdpayplus": "nadeem@payplus.pk",
+            "CBA": "azhar.khan@cba.com.pk",
+            "apigpakretails": "zaheer@pakretailers.com",
+            "apigdigikhata": "partners@digikhata.pk",
+            "vizpro": "info@vizpro.com.pk",
+            "apigprdezzyapp": "shaistaaman@multitelesoft.com",
+            "safepay": "integrations@getsafepay.com",
+            "dynamics": "muhammad.saad@thedynamics.biz",
+            "GOLDLION": "payment@goldlionpk.com",
+            "Creditbook": "altaf.shaikh@creditbook.pk",
+            "sarmayaprdgateway": "muhammad.moeen@mfsys.com.pk",
+            "textltd": "rashid.abbas@talkontext.com",
+            "ConnectDotNet": "muteen.haq@qenta.com",
+            "simpaisa": "ahsan@simpaisa.com",
+            "Markaz": "fawad@markaz.app",
+            "Microcred": "finance@microcredfin.com",
+            "Jinglecred": "jinglecred@gmail.com",
+            "Humraah": "ocean@humraahfs.com",
+        };
+
         const orgAppMap = Object.fromEntries(Object.entries(appOrgMap).map(([k, v]) => [v.toLowerCase(), k]));
 
         function autoFillFields(changedField) {
@@ -168,27 +400,30 @@
         function switchEnv(env) {
             window.location.href = "/analytics?env=" + env;
         }
+    
     </script>
 </head>
 
 <body>
+    <div class="wrap">
+        <header class="page">
+            <div>
+                <h1>API Analytics</h1>
+                <div class="sub">IBM API Connect &middot; catalog <strong>tmfb</strong></div>
+            </div>
+            <div class="seg env-buttons">
+                <button id="btn-staging" type="button" onclick="switchEnv('staging')">Staging</button>
+                <button id="btn-production" type="button" onclick="switchEnv('production')">Production</button>
+            </div>
+        </header>
 
-    <!-- Environment Buttons -->
-    <div class="env-buttons">
-        <button id="btn-staging" onclick="switchEnv('staging')">Staging</button>
-        <button id="btn-production" onclick="switchEnv('production')">Production</button>
-    </div>
+        <form method="POST" class="card">
+            <input type="hidden" name="environment" value="{{ environment }}">
 
-    <h1>API Analytics Filters</h1>
-
-    <form method="POST">
-
-        <!-- Hidden Environment Field -->
-        <input type="hidden" name="environment" value="{{ environment }}">
-
-        <!-- Timeframe -->
-        <label>Timeframe:</label>
-        <select name="timeframe">
+            <div class="grid">
+                <div class="field">
+                    <label class="cap">Timeframe</label>
+                    <select name="timeframe">
             <option value="1m">Last 1 minute</option>
             <option value="5m">Last 5 minutes</option>
             <option value="15m">Last 15 minutes</option>
@@ -199,30 +434,214 @@
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
             <option value="all-event">All Event</option>
-        </select>
+        
+                    </select>
+                </div>
 
-        <br><br>
+                <div class="field">
+                    <label class="cap">Consumer Org (Client)</label>
+                    <input list="org_names" name="org_name" placeholder="Select or type Client / Consumer Org"
+                        oninput="autoFillFields('org')">
+                    <div id="org_owner_hint" class="hint"></div>
+                    <datalist id="org_names">
+            <option value="SuperIT">
+            <option value="Original Khata">
+            <option value="Everest">
+            <option value="SwitchGW">
+            <option value="Samsoft">
+            <option value="Mehfoozit">
+            <option value="Foremost">
+            <option value="QarzMitra">
+            <option value="BLUESKY">
+            <option value="MERCADO">
+            <option value="PayPro">
+            <option value="Evolvica">
+            <option value="Technopreneur">
+            <option value="Block Chain">
+            <option value="Finleap">
+            <option value="Blue-ex">
+            <option value="ICMAP">
+            <option value="Swift Collect System">
+            <option value="Finova Tech">
+            <option value="Quark">
+            <option value="Khushi Connect">
+            <option value="Awami Financials">
+            <option value="PayPlus">
+            <option value="AwanPay">
+            <option value="INSPIREINNO">
+            <option value="ArcanaInfo">
+            <option value="Switch">
+            <option value="EFZH">
+            <option value="agregga">
+            <option value="martbox">
+            <option value="dukan">
+            <option value="infodigit">
+            <option value="storeblend">
+            <option value="ENEXT">
+            <option value="Mono Tech">
+            <option value="superpay">
+            <option value="WAU Technologies">
+            <option value="SHOPSPHERE">
+            <option value="geekguru">
+            <option value="DIGITEASE">
+            <option value="iconnect">
+            <option value="Essasoft">
+            <option value="Crown App">
+            <option value="Trax">
+            <option value="Pique pulse">
+            <option value="Visioncred">
+            <option value="Savyways">
+            <option value="GreenApp">
+            <option value="Linx Tech">
+            <option value="QuantumByte">
+            <option value="RedFeet">
+            <option value="zanitha">
+            <option value="QuickQuake">
+            <option value="GlintGlide">
+            <option value="NovaConnect">
+            <option value="CartFirst">
+            <option value="Adonai">
+            <option value="Posale">
+            <option value="Fluxify">
+            <option value="Zenforge">
+            <option value="Quwat">
+            <option value="ABH">
+            <option value="Pixel">
+            <option value="Money Tap">
+            <option value="Impexiple">
+            <option value="Trarixa">
+            <option value="Truebliss">
+            <option value="Devtects">
+            <option value="Impeltech">
+            <option value="Paismo">
+            <option value="Simpaisa HC">
+            <option value="Finance@pakisnova.com">
+            <option value="bykea">
+            <option value="QWALEE">
+            <option value="ajar">
+            <option value="Multiverse">
+            <option value="karotech">
+            <option value="4sight">
+            <option value="Ecom">
+            <option value="Finja">
+            <option value="Easypaisa OPS">
+            <option value="Naseeb online">
+            <option value="ESquare">
+            <option value="Abhi">
+            <option value="Khaleeftech">
+            <option value="snapretails">
+            <option value="Maria">
+            <option value="ecofin">
+            <option value="apigprdpayplus">
+            <option value="CBA">
+            <option value="apigpakretails">
+            <option value="apigdigikhata">
+            <option value="vizpro">
+            <option value="apigprdezzyapp">
+            <option value="safepay">
+            <option value="dynamics">
+            <option value="GOLDLION">
+            <option value="Creditbook">
+            <option value="sarmayaprdgateway">
+            <option value="textltd">
+            <option value="ConnectDotNet">
+            <option value="simpaisa">
+            <option value="Markaz">
+            <option value="Microcred">
+            <option value="Jinglecred">
+            <option value="Humraah">
+        
+                    </datalist>
+                </div>
 
-        <!-- App Name -->
-        <label>App Name:</label>
-        <input list="app_names" name="app_name" placeholder="Select or type App Name"
-            oninput="autoFillFields('app')">
-        <datalist id="app_names"></datalist>
+                <div class="field">
+                    <label class="cap">Product</label>
+                    <input list="products" name="product" placeholder="Select or type Product">
+                    <datalist id="products">
+            <option value="Easypaisa Account Transfer">
+            <option value="BISPInteroperability">
+            <option value="Receive Money BVMTR">
+            <option value="MA to Merchant">
+            <option value="Easypaisa Account Registration via Non Biometric">
+            <option value="Receive Money from CNIC via Biometric">
+            <option value="Send Money to CNIC via Biometric">
+            <option value="M2C Payment">
+            <option value="Money Transfer to Other Bank Account (IBFT) via Non Biometric">
+            <option value="Retailer CNIC-to-MA">
+            <option value="Utility Bill Payment via Non Biometric">
+            <option value="Easypaisa Account Registration via Biometric">
+            <option value="Cash Withdrawal from Easypaisa Account via Non Biometric">
+            <option value="Cash Deposit in Easypaisa Account via Non Biometric">
+            <option value="Cash Withdrawal from Easypaisa Account via Biometric">
+            <option value="Cash Deposit in Easypaisa Account via Biometric">
+            <option value="Non-BVS Login">
+            <option value="Retailer BVS Login">
+            <option value="MA to Merchant with OTP">
+            <option value="Money Transfer to Other Bank Account (IBFT)-OTP">
+            <option value="Mobile Account To CNIC Transfer -OTP">
+            <option value="Account Balance">
+            <option value="Account Status with Limits">
+            <option value="Utility Bill Payment">
+            <option value="Money Transfer to Other Bank Account (IBFT)">
+            <option value="Transaction Status Inquiry">
+            <option value="Corporate Login">
+            <option value="Easypaisa Account Transfer with OTP">
+            <option value="Cash Deposit PIN Prompt">
+            <option value="Mobile Account Registrations">
+            <option value="IBFT Payments">
+            <option value="Mobile Account to CNIC Transfer">
+            <option value="Easypaisa Self Account Registration">
+            <option value="EP Wallet Disbursements">
+            <option value="Bill Payments">
+        
+                    </datalist>
+                </div>
 
-        <br><br>
+                <div class="field">
+                    <label class="cap">App Name</label>
+                    <input list="app_names" name="app_name" placeholder="Select or type App Name"
+                        oninput="autoFillFields('app')">
+                    <datalist id="app_names">
+            <option value="4SightEasypaisa">
+            <option value="Apigprdmarkaz">
+            <option value="Awan">
+            <option value="DEVTECTS-DISBURSMENT-API">
+            <option value="Everest">
+            <option value="FauriCash">
+            <option value="Finleap">
+            <option value="Foremost-Financial-Services-Pvt-Ltd">
+            <option value="MehfozIT">
+            <option value="PaisaGo">
+            <option value="QarzMitra">
+            <option value="SAHARA">
+            <option value="SmartQarza">
+            <option value="Swich-Payout">
+            <option value="TRAX-Production">
+            <option value="agreggagateway">
+            <option value="apigdigitease">
+            <option value="apigiconnect">
+            <option value="apigprdredfeet">
+            <option value="apiprdshopsphere">
+            <option value="blueskyFinancial">
+            <option value="finova_tech">
+            <option value="info_digit-0">
+            <option value="moneytapapig">
+            <option value="originalkhata">
+            <option value="superpower">
+            <option value="visioncred">
+            <option value="zingtechprdgateway">
+        
+                    </datalist>
+                </div>
+            </div>
 
-        <!-- Org Name -->
-        <label>Org Name:</label>
-        <input list="org_names" name="org_name" placeholder="Select or type Org Name"
-            oninput="autoFillFields('org')">
-        <datalist id="org_names"></datalist>
-
-        <br><br>
-
-        <!-- API Name -->
-        <label><input type="checkbox" name="use_api_name"> API Name:</label>
-        <input list="api_names" name="api_name" placeholder="Select or type API Name">
-        <datalist id="api_names">
+            <details class="adv">
+                <summary>Advanced filters</summary>
+                <div class="grid" style="margin-top: 18px;">
+                    <div class="field">
+                        <label class="check"><input type="checkbox" name="use_api_name"> API Name</label>
+                        <input list="api_names" name="api_name" placeholder="Select or type API Name">
+                        <datalist id="api_names">
             <option value="mobile-transfer-p2p-api">
             <option value="CorporateLogin">
             <option value="cnic-to-ma">
@@ -240,44 +659,45 @@
             <option value="cash-deposit-non-bvs-api">
             <option value="sub-bill-payments-api">
             <option value="cash-withdrawal-bvs-api">
-        </datalist>
+        
+                        </datalist>
+                    </div>
 
-        <br><br>
-
-        <!-- API Resource ID -->
-        <label><input type="checkbox" name="use_api_resource_id"> API Resource ID:</label>
-        <input list="api_resource_ids" name="api_resource_id" placeholder="Enter API Resource ID or select">
-        <datalist id="api_resource_ids">
+                    <div class="field">
+                        <label class="check"><input type="checkbox" name="use_api_resource_id"> API Resource ID</label>
+                        <input list="api_resource_ids" name="api_resource_id" placeholder="Enter API Resource ID or select">
+                        <datalist id="api_resource_ids">
             <option value="Inquiry">
             <option value="Transfer">
-        </datalist>
+        
+                        </datalist>
+                    </div>
 
-        <br><br>
+                    <div class="field">
+                        <label class="check"><input type="checkbox" name="use_global_transaction_id"> Global Transaction ID</label>
+                        <input type="text" name="global_transaction_id" placeholder="Enter Global Transaction ID">
+                    </div>
 
-        <!-- Global Txn ID -->
-        <label><input type="checkbox" name="use_global_transaction_id"> Global Transaction ID:</label>
-        <input type="text" name="global_transaction_id">
+                    <div class="field">
+                        <label class="check"><input type="checkbox" name="use_request_body"> Request Body</label>
+                        <input type="text" name="request_body" placeholder="Contains text in request body">
+                    </div>
 
-        <br><br>
+                    <div class="field">
+                        <label class="check"><input type="checkbox" name="use_response_body"> Response Body</label>
+                        <input type="text" name="response_body" placeholder="Contains text in response body">
+                    </div>
+                </div>
+            </details>
 
-        <!-- Request Body -->
-        <label><input type="checkbox" name="use_request_body"> Request Body:</label>
-        <input type="text" name="request_body">
+            <div class="actions">
+                <button type="submit" class="btn-primary">Fetch Analytics</button>
+            </div>
+        </form>
 
-        <br><br>
-
-        <!-- Response Body -->
-        <label><input type="checkbox" name="use_response_body"> Response Body:</label>
-        <input type="text" name="response_body">
-
-        <br><br>
-
-        <button type="submit">Fetch Analytics</button>
-    </form>
-
-    <h2>Response:</h2>
-    <pre>{{ response | tojson(indent=2) }}</pre>
-
+        <h2 class="resp-title">Response</h2>
+        <pre class="resp">{{ response | tojson(indent=2) }}</pre>
+    </div>
 </body>
 
 </html>

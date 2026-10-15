@@ -1,0 +1,13 @@
+﻿# Python
+__pycache__/
+*.pyc
+
+# Local backups / logs
+*.bak
+nohup.out
+
+# Secrets â€” never commit real env files
+*.env
+.env
+!.env.example
+
