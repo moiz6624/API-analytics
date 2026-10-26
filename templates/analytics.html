@@ -143,10 +143,31 @@
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
             border: 1px solid var(--border);
         }
+        .stat-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 16px; margin: 6px 0 10px;
+        }
+        .stat {
+            background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: var(--shadow); padding: 18px 20px;
+        }
+        .stat-label {
+            font-size: 11px; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .05em;
+        }
+        .stat-value { font-size: 28px; font-weight: 700; margin-top: 8px; letter-spacing: -.02em; }
+        .stat-value .unit { font-size: 14px; font-weight: 600; color: var(--muted); }
+        .sc-table { width: 100%; border-collapse: collapse; }
+        .sc-table th, .sc-table td {
+            text-align: left; padding: 12px 18px; font-size: 14px; border-bottom: 1px solid var(--border);
+        }
+        .sc-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+        .sc-table tr:last-child td { border-bottom: 0; }
     </style>
 
     <script>
         const currentEnv = "{{ environment }}"; // staging or production
+        const currentMode = "{{ mode }}"; // logs or analytics
 
         // Mark active button
         window.onload = () => {
@@ -159,13 +180,22 @@
                 stagingBtn.classList.add("active");
             }
 
+            // Mark active mode button
+            const logsBtn = document.getElementById("btn-logs");
+            const analyticsBtn = document.getElementById("btn-analytics");
+            if (logsBtn && analyticsBtn) {
+                (currentMode === "analytics" ? analyticsBtn : logsBtn).classList.add("active");
+            }
+
             // Fill App datalist from the known app->org map
             const appList = document.getElementById("app_names");
-            Object.keys(appOrgMap).forEach((app) => {
-                const o = document.createElement("option");
-                o.value = app;
-                appList.appendChild(o);
-            });
+            if (appList) {
+                Object.keys(appOrgMap).forEach((app) => {
+                    const o = document.createElement("option");
+                    o.value = app;
+                    appList.appendChild(o);
+                });
+            }
 
             // Show owner email when a client / consumer org is picked
             const orgInput = document.querySelector('input[name="org_name"]');
@@ -398,7 +428,12 @@
         }
 
         function switchEnv(env) {
-            window.location.href = "/analytics?env=" + env;
+            const base = (currentMode === "analytics") ? "/summary" : "/analytics";
+            window.location.href = base + "?env=" + env;
+        }
+        function switchMode(mode) {
+            const base = (mode === "analytics") ? "/summary" : "/analytics";
+            window.location.href = base + "?env=" + currentEnv;
         }
     
     </script>
@@ -411,12 +446,70 @@
                 <h1>API Analytics</h1>
                 <div class="sub">IBM API Connect &middot; catalog <strong>tmfb</strong></div>
             </div>
-            <div class="seg env-buttons">
-                <button id="btn-staging" type="button" onclick="switchEnv('staging')">Staging</button>
-                <button id="btn-production" type="button" onclick="switchEnv('production')">Production</button>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <div class="seg mode-buttons">
+                    <button id="btn-logs" type="button" onclick="switchMode('logs')">Check Logs</button>
+                    <button id="btn-analytics" type="button" onclick="switchMode('analytics')">Check Analytics</button>
+                </div>
+                <div class="seg env-buttons">
+                    <button id="btn-staging" type="button" onclick="switchEnv('staging')">Staging</button>
+                    <button id="btn-production" type="button" onclick="switchEnv('production')">Production</button>
+                </div>
             </div>
         </header>
 
+{% if mode == 'analytics' %}
+        <form method="POST" class="card">
+            <input type="hidden" name="environment" value="{{ environment }}">
+            <div class="grid">
+                <div class="field">
+                    <label class="cap">Timeframe</label>
+                    <select name="timeframe">
+                        <option value="1h" {% if summary_timeframe=='1h' %}selected{% endif %}>Last 1 hour</option>
+                        <option value="4h" {% if summary_timeframe=='4h' %}selected{% endif %}>Last 4 hours</option>
+                        <option value="12h" {% if summary_timeframe=='12h' %}selected{% endif %}>Last 12 hours</option>
+                        <option value="24h" {% if summary_timeframe=='24h' %}selected{% endif %}>Last 24 hours</option>
+                        <option value="7d" {% if summary_timeframe=='7d' %}selected{% endif %}>Last 7 days</option>
+                        <option value="30d" {% if summary_timeframe=='30d' %}selected{% endif %}>Last 30 days</option>
+                        <option value="all-event" {% if summary_timeframe=='all-event' %}selected{% endif %}>All</option>
+                    </select>
+                </div>
+            </div>
+            <div class="actions">
+                <button type="submit" class="btn-primary">Fetch Analytics</button>
+            </div>
+        </form>
+
+        {% if summary %}
+          {% if summary.error %}
+            <h2 class="resp-title">Error</h2>
+            <pre class="resp">{{ summary.error }}</pre>
+          {% else %}
+            <h2 class="resp-title">Summary &middot; {{ environment }}</h2>
+            <div class="stat-grid">
+                <div class="stat"><div class="stat-label">Total APIs</div><div class="stat-value">{{ summary.total_apis if summary.total_apis is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Total Products</div><div class="stat-value">{{ summary.total_products if summary.total_products is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Total Applications</div><div class="stat-value">{{ summary.total_applications if summary.total_applications is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Total Consumer Orgs</div><div class="stat-value">{{ summary.total_consumer_orgs if summary.total_consumer_orgs is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Total API Calls</div><div class="stat-value">{{ "{:,}".format(summary.total_api_calls) if summary.total_api_calls is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Transactions / sec</div><div class="stat-value">{{ summary.transactions_per_second if summary.transactions_per_second is not none else "\u2014" }}</div></div>
+                <div class="stat"><div class="stat-label">Avg Response Time</div><div class="stat-value">{{ summary.avg_response_time if summary.avg_response_time is not none else "\u2014" }}<span class="unit"> ms</span></div></div>
+            </div>
+
+            <h2 class="resp-title">Status Codes</h2>
+            <div class="card" style="padding:0; overflow:hidden;">
+              <table class="sc-table">
+                <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                <tbody>
+                  {% for sc in summary.status_codes %}
+                  <tr><td>{{ sc.group }}</td><td>{{ "{:,}".format(sc.value) if sc.value is not none else "\u2014" }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        {% endif %}
+{% else %}
         <form method="POST" class="card">
             <input type="hidden" name="environment" value="{{ environment }}">
 
@@ -697,6 +790,7 @@
 
         <h2 class="resp-title">Response</h2>
         <pre class="resp">{{ response | tojson(indent=2) }}</pre>
+        {% endif %}
     </div>
 </body>
 

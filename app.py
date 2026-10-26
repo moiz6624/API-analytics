@@ -40,6 +40,10 @@ API_KEY = os.environ.get("IBM_API_KEY", "")
 URL_STAGING = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/dev-catalog/events"
 URL_PRODUCTION = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/gateway/events"
 
+# Summary (dashboards/summary) endpoints
+SUMMARY_STAGING = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/dev-catalog/dashboards/summary"
+SUMMARY_PRODUCTION = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/gateway/dashboards/summary"
+
 # Token cache
 cached_token = None
 token_expiry = 0
@@ -147,7 +151,7 @@ def analytics():
         try:
             token = get_token()
         except Exception as e:
-            return render_template("analytics.html", response={"error": str(e)}, environment=env)
+            return render_template("analytics.html", response={"error": str(e)}, environment=env, mode="logs")
 
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
@@ -201,7 +205,53 @@ def analytics():
         except Exception as e:
             response_data = {"error": str(e)}
 
-    return render_template("analytics.html", response=response_data, environment=env)
+    return render_template("analytics.html", response=response_data, environment=env, mode="logs")
+
+
+@app.route("/summary", methods=["GET", "POST"])
+def summary():
+    env = request.args.get("env") or request.form.get("environment") or "production"
+    SUMMARY_URL = SUMMARY_STAGING if env == "staging" else SUMMARY_PRODUCTION
+
+    summary_data = None
+    timeframe = "24h"
+
+    if request.method == "POST":
+        timeframe = request.form.get("timeframe") or "24h"
+        tf = TIMEFRAME_MAP.get(timeframe, "last24hours")
+
+        def _num(v):
+            return v.get("data") if isinstance(v, dict) else None
+
+        try:
+            token = get_token()
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+            res = requests.get(SUMMARY_URL, headers=headers, params={"timeframe": tf})
+            res.raise_for_status()
+            raw = res.json()
+
+            art = _num(raw.get("avg_response_time"))
+            summary_data = {
+                "total_apis": _num(raw.get("total_apis")),
+                "total_products": _num(raw.get("total_products")),
+                "total_applications": _num(raw.get("total_applications")),
+                "total_consumer_orgs": _num(raw.get("total_consumer_orgs")),
+                "total_api_calls": _num(raw.get("total_api_calls")),
+                "transactions_per_second": _num(raw.get("transactions_per_second")),
+                "avg_response_time": round(art, 2) if isinstance(art, (int, float)) else art,
+                "status_codes": (raw.get("status_codes") or {}).get("data") or [],
+            }
+        except Exception as e:
+            summary_data = {"error": str(e)}
+
+    return render_template(
+        "analytics.html",
+        mode="analytics",
+        summary=summary_data,
+        summary_timeframe=timeframe,
+        environment=env,
+        response=None,
+    )
 
 
 if __name__ == "__main__":
