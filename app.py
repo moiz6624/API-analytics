@@ -3,6 +3,7 @@ import os
 import requests
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
@@ -208,6 +209,109 @@ def analytics():
     return render_template("analytics.html", response=response_data, environment=env, mode="logs")
 
 
+def _events_get(url, token, params):
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    r = requests.get(url, headers=headers, params=params, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def _rank(count_map):
+    """[{name, calls, pct}] sorted desc, dropping zeros."""
+    items = sorted([(k, v) for k, v in count_map.items() if v], key=lambda x: -x[1])
+    mx = items[0][1] if items else 1
+    return [{"name": k, "calls": v, "pct": round(v * 100.0 / mx, 1)} for k, v in items]
+
+
+def _calls_breakdown(events_url, token, tf, pages=4, page=1000, workers=28):
+    """One sweep to discover app_name / product_title / api_name / api_resource_id,
+    then exact counts for each app, each product, and each tree leaf. An API that has
+    more than one resource (e.g. Inquiry vs Transfer) is split by api_resource_id.
+    Returns (app_calls, product_calls, tree)."""
+    def _page(i):
+        return _events_get(events_url, token,
+                           {"timeframe": tf, "limit": page, "offset": i * page,
+                            "fields": "app_name,product_title,api_name,api_resource_id"})
+
+    apps, products = set(), set()
+    triple_res = {}  # (app, product, api) -> set(api_resource_id)
+    with ThreadPoolExecutor(max_workers=pages) as ex:
+        for d in ex.map(_page, range(pages)):
+            for e in d.get("events", []):
+                a = (e.get("app_name") or "").strip()
+                p = (e.get("product_title") or "").strip()
+                n = (e.get("api_name") or "").strip()
+                r = (e.get("api_resource_id") or "").strip()
+                if not a or a.lower() == "undefined":
+                    continue
+                apps.add(a)
+                if p and p.lower() != "undefined" and n and n.lower() != "undefined":
+                    products.add(p)
+                    rs = triple_res.setdefault((a, p, n), set())
+                    if r and r.lower() != "undefined":
+                        rs.add(r)
+                elif p and p.lower() != "undefined":
+                    products.add(p)
+
+    def _count(params):
+        d = _events_get(events_url, token, dict(params, timeframe=tf, limit=1))
+        return d.get("total", 0)
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        app_f = {a: ex.submit(_count, {"app_name": f"equals:{a}"}) for a in apps}
+        prod_f = {p: ex.submit(_count, {"product_title": f"equals:{p}"}) for p in products}
+        tri_f, quad_f = {}, {}
+        for (a, p, n), rs in triple_res.items():
+            if len(rs) > 1:
+                for r in rs:
+                    quad_f[(a, p, n, r)] = ex.submit(_count, {
+                        "app_name": f"equals:{a}", "product_title": f"equals:{p}",
+                        "api_name": f"equals:{n}", "api_resource_id": f"equals:{r}"})
+            else:
+                tri_f[(a, p, n)] = ex.submit(_count, {
+                    "app_name": f"equals:{a}", "product_title": f"equals:{p}",
+                    "api_name": f"equals:{n}"})
+        app_counts = {a: f.result() for a, f in app_f.items()}
+        prod_counts = {p: f.result() for p, f in prod_f.items()}
+        tri_counts = {k: f.result() for k, f in tri_f.items()}
+        quad_counts = {k: f.result() for k, f in quad_f.items()}
+
+    def _op(r):
+        parts = r.split(":")
+        return f"{parts[2]} {parts[3]}" if len(parts) >= 4 else r
+
+    nested = {}  # app -> product -> api -> {calls, resources}
+    for (a, p, n), c in tri_counts.items():
+        if c:
+            nested.setdefault(a, {}).setdefault(p, {})[n] = {"calls": c, "resources": None}
+    for (a, p, n, r), c in quad_counts.items():
+        if not c:
+            continue
+        api = nested.setdefault(a, {}).setdefault(p, {}).setdefault(n, {"calls": 0, "resources": []})
+        if api["resources"] is None:
+            api["resources"] = []
+        api["resources"].append({"name": _op(r), "calls": c})
+        api["calls"] += c
+
+    tree = []
+    for a, prods in nested.items():
+        plist = []
+        for p, apis in prods.items():
+            apilist = []
+            for n, info in apis.items():
+                res = info["resources"]
+                if res:
+                    res.sort(key=lambda x: -x["calls"])
+                apilist.append({"name": n, "calls": info["calls"], "resources": res})
+            apilist.sort(key=lambda x: -x["calls"])
+            plist.append({"product": p, "calls": sum(x["calls"] for x in apilist), "apis": apilist})
+        plist.sort(key=lambda x: -x["calls"])
+        tree.append({"app": a, "calls": sum(x["calls"] for x in plist), "products": plist})
+    tree.sort(key=lambda x: -x["calls"])
+
+    return _rank(app_counts), _rank(prod_counts), tree
+
+
 @app.route("/summary", methods=["GET", "POST"])
 def summary():
     env = request.args.get("env") or request.form.get("environment") or "production"
@@ -241,6 +345,17 @@ def summary():
                 "avg_response_time": round(art, 2) if isinstance(art, (int, float)) else art,
                 "status_codes": (raw.get("status_codes") or {}).get("data") or [],
             }
+
+            try:
+                events_url = URL_STAGING if env == "staging" else URL_PRODUCTION
+                app_calls, product_calls, tree = _calls_breakdown(events_url, token, tf)
+                summary_data["app_calls"] = app_calls
+                summary_data["product_calls"] = product_calls
+                summary_data["tree"] = tree
+            except Exception:
+                summary_data["app_calls"] = []
+                summary_data["product_calls"] = []
+                summary_data["tree"] = []
         except Exception as e:
             summary_data = {"error": str(e)}
 

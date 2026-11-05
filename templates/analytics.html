@@ -163,6 +163,35 @@
         }
         .sc-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
         .sc-table tr:last-child td { border-bottom: 0; }
+        .tree { font-size: 14px; }
+        .tree details { margin: 1px 0; }
+        .tree summary {
+            cursor: pointer; padding: 6px 10px; border-radius: 8px; list-style: none;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tree summary::-webkit-details-marker { display: none; }
+        .tree summary::before {
+            content: "\25B8"; color: var(--muted); display: inline-block; transition: transform .15s;
+        }
+        .tree details[open] > summary::before { transform: rotate(90deg); }
+        .tree summary:hover { background: var(--brand-weak); }
+        .t-app > summary { font-weight: 700; }
+        .t-prod { margin-left: 22px; }
+        .t-prod > summary { font-weight: 600; color: var(--muted); }
+        .t-apis { margin-left: 44px; }
+        .t-api > summary { font-weight: 600; }
+        .t-leaf { padding: 5px 10px 5px 30px; display: flex; align-items: center; gap: 8px; }
+        .t-leaf::before { content: "\2022"; color: var(--brand); }
+        .t-ops { list-style: none; margin: 0; padding: 2px 0 6px 0; }
+        .t-ops li {
+            margin-left: 34px; padding: 4px 10px; display: flex; align-items: center; gap: 8px; color: var(--muted);
+        }
+        .t-ops li::before { content: "\2219"; color: var(--brand); }
+        .t-count {
+            margin-left: auto; font-variant-numeric: tabular-nums; background: var(--brand-weak);
+            color: var(--ink); padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
+        }
+        .t-ops li .t-count { background: transparent; color: var(--muted); }
     </style>
 
     <script>
@@ -507,6 +536,88 @@
                 </tbody>
               </table>
             </div>
+
+            {% if summary.app_calls %}
+            <h2 class="resp-title">API Calls by Application</h2>
+            <div class="card" style="padding:0; overflow:hidden;">
+              <table class="sc-table">
+                <thead><tr><th>Application</th><th style="text-align:right;">API Calls</th></tr></thead>
+                <tbody>
+                  {% for a in summary.app_calls %}
+                  <tr>
+                    <td>{{ a.name }}</td>
+                    <td>
+                      <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end;">
+                        <div style="flex:1; max-width:180px; height:8px; background:var(--brand-weak); border-radius:4px; overflow:hidden;">
+                          <div style="width:{{ a.pct }}%; height:100%; background:var(--brand);"></div>
+                        </div>
+                        <span style="min-width:72px; text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(a.calls) }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+
+            {% if summary.product_calls %}
+            <h2 class="resp-title">API Calls by Product</h2>
+            <div class="card" style="padding:0; overflow:hidden;">
+              <table class="sc-table">
+                <thead><tr><th>Product</th><th style="text-align:right;">API Calls</th></tr></thead>
+                <tbody>
+                  {% for a in summary.product_calls %}
+                  <tr>
+                    <td>{{ a.name }}</td>
+                    <td>
+                      <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end;">
+                        <div style="flex:1; max-width:180px; height:8px; background:var(--brand-weak); border-radius:4px; overflow:hidden;">
+                          <div style="width:{{ a.pct }}%; height:100%; background:var(--brand);"></div>
+                        </div>
+                        <span style="min-width:72px; text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(a.calls) }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+
+            {% if summary.tree %}
+            <h2 class="resp-title">Application &rarr; Product &rarr; API</h2>
+            <div class="card">
+              <div class="tree">
+                {% for app in summary.tree %}
+                <details class="t-app">
+                  <summary>{{ app.app }}<span class="t-count">{{ "{:,}".format(app.calls) }}</span></summary>
+                  {% for p in app.products %}
+                  <details class="t-prod">
+                    <summary>{{ p.product }}<span class="t-count">{{ "{:,}".format(p.calls) }}</span></summary>
+                    <div class="t-apis">
+                      {% for api in p.apis %}
+                        {% if api.resources %}
+                        <details class="t-api">
+                          <summary>{{ api.name }}<span class="t-count">{{ "{:,}".format(api.calls) }}</span></summary>
+                          <ul class="t-ops">
+                            {% for op in api.resources %}
+                            <li>{{ op.name }}<span class="t-count">{{ "{:,}".format(op.calls) }}</span></li>
+                            {% endfor %}
+                          </ul>
+                        </details>
+                        {% else %}
+                        <div class="t-leaf">{{ api.name }}<span class="t-count">{{ "{:,}".format(api.calls) }}</span></div>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </details>
+                  {% endfor %}
+                </details>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
           {% endif %}
         {% endif %}
 {% else %}
