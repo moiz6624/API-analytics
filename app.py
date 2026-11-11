@@ -45,6 +45,10 @@ URL_PRODUCTION = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/an
 SUMMARY_STAGING = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/dev-catalog/dashboards/summary"
 SUMMARY_PRODUCTION = "https://api.8798-f464fa20.eu-de.ri.apiconnect.cloud.ibm.com/analytics/ibm-managed-analytics-service-v2/catalogs/tmfb/gateway/dashboards/summary"
 
+# Product call-count aggregation (server-side; all products, exact)
+PRODUCT_DASH_STAGING = URL_STAGING.replace("/events", "/dashboards/product")
+PRODUCT_DASH_PRODUCTION = URL_PRODUCTION.replace("/events", "/dashboards/product")
+
 # Token cache
 cached_token = None
 token_expiry = 0
@@ -223,6 +227,17 @@ def _rank(count_map):
     return [{"name": k, "calls": v, "pct": round(v * 100.0 / mx, 1)} for k, v in items]
 
 
+def _product_calls_agg(url, token, tf, timeout=180):
+    """Exact per-product call counts from IBM's server-side aggregation
+    (every product, not a sample). Returns the same shape as _rank()."""
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    r = requests.get(url, headers=headers, params={"timeframe": tf}, timeout=timeout)
+    r.raise_for_status()
+    data = (r.json().get("top_products_by_calls") or {}).get("data") or []
+    counts = {d.get("group"): d.get("value", 0) for d in data if d.get("group")}
+    return _rank(counts)
+
+
 def _calls_breakdown(events_url, token, tf, pages=4, page=1000, workers=28):
     """One sweep to discover app_name / product_title / api_name / api_resource_id,
     then exact counts for each app, each product, and each tree leaf. An API that has
@@ -348,7 +363,16 @@ def summary():
 
             try:
                 events_url = URL_STAGING if env == "staging" else URL_PRODUCTION
-                app_calls, product_calls, tree = _calls_breakdown(events_url, token, tf)
+                product_dash = PRODUCT_DASH_STAGING if env == "staging" else PRODUCT_DASH_PRODUCTION
+                # product list from server-side aggregation (all products, exact),
+                # run in parallel with the per-app tree so it adds no extra wait
+                with ThreadPoolExecutor(max_workers=2) as _ex:
+                    _f_prod = _ex.submit(_product_calls_agg, product_dash, token, tf)
+                    app_calls, sampled_prod, tree = _calls_breakdown(events_url, token, tf)
+                    try:
+                        product_calls = _f_prod.result()
+                    except Exception:
+                        product_calls = sampled_prod  # fallback: sampled products
                 summary_data["app_calls"] = app_calls
                 summary_data["product_calls"] = product_calls
                 summary_data["tree"] = tree
